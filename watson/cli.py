@@ -489,7 +489,11 @@ def log(watson, from_, to, projects, tags):
             for frame in frames
         ))
 
-    click.echo_via_pager('\n'.join(lines))
+    too_long = len(lines)+2 > click.get_terminal_size()[1]
+    if not too_long and watson.config.get('options', 'echo_short_logs'):
+        click.echo('\n'.join(lines))
+    else:
+        click.echo_via_pager('\n'.join(lines))
 
 
 @cli.command()
