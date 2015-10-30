@@ -177,6 +177,44 @@ def stop(watson):
 
 
 @cli.command()
+@click.argument('id', required=False)
+@click.pass_obj
+def restart(watson, id):
+    if not id:
+        try:
+            frame = watson.frames[-1]
+        except IndexError:
+            raise click.ClickException(
+                "No frame to restart. It's time to create your first one!"
+            )
+    else:
+        try:
+            frame = watson.frames[id]
+        except KeyError:
+            raise click.ClickException("No frame found with id {}.".format(id))
+
+    if watson.config.get('options', 'stop_on_start'):
+        try:
+            frame = watson.stop()
+            click.echo("Stopping project {} {}, started {}. (id: {})".format(
+                style('project', frame.project),
+                style('tags', frame.tags),
+                style('time', frame.start.humanize()),
+                style('short_id', frame.id)
+            ))
+        except WatsonCliError:
+            pass
+
+    current = watson.start(frame.project, frame.tags)
+    click.echo("Restarting {} {} at {}".format(
+        style('project', frame.project),
+        style('tags', frame.tags),
+        style('time', "{:HH:mm}".format(current['start']))
+    ))
+    watson.save()
+
+
+@cli.command()
 @click.pass_obj
 def cancel(watson):
     """
