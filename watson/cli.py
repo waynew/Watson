@@ -195,12 +195,12 @@ def restart(watson, id):
 
     if watson.config.get('options', 'stop_on_start'):
         try:
-            frame = watson.stop()
+            old_frame = watson.stop()
             click.echo("Stopping project {} {}, started {}. (id: {})".format(
-                style('project', frame.project),
-                style('tags', frame.tags),
-                style('time', frame.start.humanize()),
-                style('short_id', frame.id)
+                style('project', old_frame.project),
+                style('tags', old_frame.tags),
+                style('time', old_frame.start.humanize()),
+                style('short_id', old_frame.id)
             ))
         except WatsonCliError:
             pass
