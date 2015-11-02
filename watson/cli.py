@@ -537,6 +537,8 @@ def log(watson, from_, to, projects, tags):
 
     lines = []
 
+    total = datetime.timedelta()
+
     for i, (day, frames) in enumerate(frames_by_day):
         if i != 0:
             lines.append('')
@@ -558,6 +560,17 @@ def log(watson, from_, to, projects, tags):
                 id=style('short_id', frame.id)
             )
             for frame in frames
+        ))
+
+        delta = reduce(
+            operator.add,
+            (f.stop - f.start for f in frames),
+            datetime.timedelta()
+        )
+        total += delta
+
+        lines.append("Total: {}".format(
+            style('time', '{}'.format(format_timedelta(delta)))
         ))
 
     too_long = len(lines)+2 > click.get_terminal_size()[1]
