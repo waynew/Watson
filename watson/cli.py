@@ -253,6 +253,77 @@ def status(watson):
 
 
 @cli.command()
+@click.option('-p', '--project', 'projects', multiple=True,
+              help="Reports activity only for the given project. You can add "
+              "other projects by using this option several times.")
+@click.option('-T', '--tag', 'tags', multiple=True,
+              help="Reports activity only for frames containing the given "
+              "tag. You can add several tags by using this option multiple "
+              "times")
+@click.pass_obj
+def today(watson, projects, tags):
+    """
+    Report activity for today
+    """
+    from_ = to = arrow.now()
+    span = watson.frames.span(from_, to)
+
+    frames_by_project = sorted_groupby(
+        watson.frames.filter(
+            projects=projects or None, tags=tags or None, span=span
+        ),
+        operator.attrgetter('project')
+    )
+
+    total = datetime.timedelta()
+
+    click.echo("{} -> {}\n".format(
+        style('date', '{:ddd DD MMMM YYYY}'.format(span.start)),
+        style('date', '{:ddd DD MMMM YYYY}'.format(span.stop))
+    ))
+
+    for project, frames in frames_by_project:
+        frames = tuple(frames)
+        delta = reduce(
+            operator.add,
+            (f.stop - f.start for f in frames),
+            datetime.timedelta()
+        )
+        total += delta
+
+        click.echo("{project} - {time}".format(
+            time=style('time', format_timedelta(delta)),
+            project=style('project', project)
+        ))
+
+        tags_to_print = sorted(
+            set(tag for frame in frames for tag in frame.tags
+                if tag in tags or not tags)
+        )
+        if tags_to_print:
+            longest_tag = max(len(tag) for tag in tags_to_print or [''])
+
+        for tag in tags_to_print:
+            delta = reduce(
+                operator.add,
+                (f.stop - f.start for f in frames if tag in f.tags),
+                datetime.timedelta()
+            )
+
+            click.echo("\t[{tag} {time}]".format(
+                time=style('time', '{:>11}'.format(format_timedelta(delta))),
+                tag=style('tag', '{:<{}}'.format(tag, longest_tag)),
+            ))
+
+        click.echo()
+
+    if projects or tags:
+        click.echo("Total: {}".format(
+            style('time', '{}'.format(format_timedelta(total)))
+        ))
+
+
+@cli.command()
 @click.option('-f', '--from', 'from_', type=Date,
               default=arrow.now().replace(days=-7),
               help="The date from when the report should start. Defaults "
