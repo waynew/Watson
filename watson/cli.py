@@ -253,6 +253,33 @@ def status(watson):
 
 
 @cli.command()
+@click.pass_obj
+def last(watson):
+    """
+    Display the last frame (regardless of start or not)
+
+    \b
+    Example:
+    $ watson status
+    Project apollo11 started seconds ago
+    """
+    try:
+        frame = watson.frames[-1]
+    except IndexError:
+        raise click.ClickException(
+            "No frame to edit. It's time to create your first one!"
+        )
+
+
+    delta = frame.stop - frame.start
+    click.echo("{project} {tags} - {time}".format(
+        time=style('time', format_timedelta(delta)),
+        tags=style('tags', frame.tags),
+        project=style('project', frame.project)
+    ))
+
+
+@cli.command()
 @click.option('-p', '--project', 'projects', multiple=True,
               help="Reports activity only for the given project. You can add "
               "other projects by using this option several times.")
@@ -317,10 +344,9 @@ def today(watson, projects, tags):
 
         click.echo()
 
-    if projects or tags:
-        click.echo("Total: {}".format(
-            style('time', '{}'.format(format_timedelta(total)))
-        ))
+    click.echo("Total: {}".format(
+        style('time', '{}'.format(format_timedelta(total)))
+    ))
 
 
 @cli.command()
