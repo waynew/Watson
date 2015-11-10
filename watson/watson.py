@@ -168,6 +168,15 @@ class Watson(object):
         if self._frames is None:
             self.frames = self._load_json_file(self.frames_file, type=list)
 
+            include_current = self.config.getboolean('options',
+                                                     'include_current_frame')
+            if self.is_started and include_current:
+                self._frames.add(self.current['project'],
+                                 self.current['start'],
+                                 arrow.now(),
+                                 tags=self.current['tags']
+                )
+
         return self._frames
 
     @frames.setter
