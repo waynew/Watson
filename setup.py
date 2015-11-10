@@ -1,15 +1,16 @@
 from setuptools import setup
 
-with open('README.md') as f:
+with open('README.rst') as f:
     readme = f.read()
 
 
 setup(
     name='td-watson',
-    version='1.0.2',
+    version='1.1.0',
+    description='A wonderful CLI to track your time!',
     packages=['watson'],
     author='TailorDev',
-    author_email='contact@tailordev.com',
+    author_email='contact@tailordev.fr',
     license='MIT',
     long_description=readme,
     install_requires=[

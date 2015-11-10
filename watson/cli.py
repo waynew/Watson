@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from __future__ import division
 
 import json
 import datetime
@@ -111,25 +112,29 @@ def help(ctx, command):
 @click.pass_obj
 def start(watson, args):
     """
-    Start monitoring the time for the given project. You can add tags
-    indicating more specifically what you are working on with '+tag'.
+    Start monitoring the time for the given project.
+
+    You can add tags indicating more specifically what you are working on with
+    '+tag'.
+
+    If there is already a running project and the configuration option
+    ``stop_on_start`` is set to a true value (``'1'``, ``'on'``, ``'true'`` or
+    ``'yes'``), it is stopped before the new project is started.
 
     \b
     Example :
     $ watson start apollo11 +module +brakes
     Starting apollo11 [module, brakes] at 16:34
     """
-    if watson.config.get('options', 'stop_on_start'):
-        try:
-            frame = watson.stop()
-            click.echo("Stopping project {} {}, started {}. (id: {})".format(
-                style('project', frame.project),
-                style('tags', frame.tags),
-                style('time', frame.start.humanize()),
-                style('short_id', frame.id)
-            ))
-        except WatsonCliError:
-            pass
+    if (watson.config.getboolean('options', 'stop_on_start')
+            and watson.is_started):
+        frame = watson.stop()
+        click.echo("Stopping project {} {}, started {}. (id: {})".format(
+            style('project', frame.project),
+            style('tags', frame.tags),
+            style('time', frame.start.humanize()),
+            style('short_id', frame.id)
+        ))
 
     project = ' '.join(
         itertools.takewhile(lambda s: not s.startswith('+'), args)
@@ -233,22 +238,36 @@ def cancel(watson):
 @click.pass_obj
 def status(watson):
     """
-    Display the time spent since the current project was started.
+    Display when the current project was started and the time spent since.
+
+    You can configure how the date and time of when the project was started are
+    displayed by setting 'options.date_format' and 'options.time_format' in the
+    configuration. The syntax of these formatting strings and the supported
+    placeholders are the same as for the 'strftime' method of Python's
+    'datetime.datetime' class.
 
     \b
     Example:
     $ watson status
-    Project apollo11 started seconds ago
+    Project apollo11 [brakes] started seconds ago (2014-05-19 14:32:41+0100)
+    $ watson config options.date_format %d.%m.%Y
+    $ watson config options.time_format "at %I:%M %p"
+    $ watson status
+    Project apollo11 [brakes] started a minute ago (19.05.2014 at 02:32 PM)
     """
     if not watson.is_started:
         click.echo("No project started")
         return
 
     current = watson.current
-    click.echo("Project {} {} started {}".format(
+    datefmt = watson.config.get('options', 'date_format', '%Y.%m.%d')
+    timefmt = watson.config.get('options', 'time_format', '%H:%M:%S%z')
+    click.echo("Project {} {} started {} ({} {})".format(
         style('project', current['project']),
         style('tags', current['tags']),
-        style('time', current['start'].humanize())
+        style('time', current['start'].humanize()),
+        style('date', current['start'].strftime(datefmt)),
+        style('time', current['start'].strftime(timefmt))
     ))
 
 
@@ -364,8 +383,11 @@ def today(watson, projects, tags):
               help="Reports activity only for frames containing the given "
               "tag. You can add several tags by using this option multiple "
               "times")
+@click.option('-w', '--workweek', 'special', flag_value='workweek',
+              help="Shortcut for the current work week, overriding -f and -t "
+              "by setting them to Monday and Friday respectively.")
 @click.pass_obj
-def report(watson, from_, to, projects, tags):
+def report(watson, from_, to, projects, tags, special):
     """
     Display a report of the time spent on each project.
 
@@ -429,6 +451,12 @@ def report(watson, from_, to, projects, tags):
             [steering 10h 33m 37s]
             [wheels   10h 11m 35s]
     """
+    if special == 'workweek':
+        now = arrow.now()
+        monday = now - datetime.timedelta(days=now.isoweekday()-1)
+        friday = monday + datetime.timedelta(days=4)
+        from_, to = monday, friday
+
     if from_ > to:
         raise click.ClickException("'from' must be anterior to 'to'")
 
@@ -487,6 +515,23 @@ def report(watson, from_, to, projects, tags):
         click.echo("Total: {}".format(
             style('time', '{}'.format(format_timedelta(total)))
         ))
+
+    target_hours_per_week = watson.config.getfloat('options',
+                                                   'target_hours_per_week')
+    if target_hours_per_week is not None:
+        sec_per_min = 60
+        min_per_hr = 60
+        offset = 1000
+        weeks = abs(span.start - span.stop).days/7
+        target_hours = weeks*target_hours_per_week
+        actual_hours = total.total_seconds()/sec_per_min/min_per_hr
+        comparison_target_hours = int(offset*target_hours)
+        comparison_actual_hours = int(offset*actual_hours)
+        label = 'Work completed: {:.1f}h/{:.1f}h'.format(actual_hours,
+                                                        target_hours)
+        with click.progressbar(length=comparison_target_hours,
+                               label=label) as bar:
+            bar.update(comparison_actual_hours)
 
 
 @cli.command()
@@ -651,6 +696,24 @@ def tags(watson):
 
 
 @cli.command()
+@click.pass_obj
+def frames(watson):
+    """
+    Display the list of all frame IDs.
+
+    \b
+    Example:
+    $ watson frames
+    f1c4815
+    9d1a989
+    8801ec3
+    [...]
+    """
+    for frame in watson.frames:
+        click.echo(style('short_id', frame.id))
+
+
+@cli.command()
 @click.argument('id', required=False)
 @click.pass_obj
 def edit(watson, id):
@@ -681,7 +744,7 @@ def edit(watson, id):
         'stop': frame.stop.format(format),
         'project': frame.project,
         'tags': frame.tags,
-    }, indent=4, sort_keys=True)
+    }, indent=4, sort_keys=True, ensure_ascii=False)
 
     output = click.edit(text, extension='.json')
 
