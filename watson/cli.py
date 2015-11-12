@@ -483,6 +483,7 @@ def report(watson, from_, to, projects, tags, special):
             (f.stop - f.start for f in frames),
             datetime.timedelta()
         )
+
         total += delta
 
         click.echo("{project} - {time}".format(
@@ -511,6 +512,22 @@ def report(watson, from_, to, projects, tags, special):
 
         click.echo()
 
+    if watson.config.get('options', 'include_current_frame'):
+        if watson.is_started:
+            current = watson.current
+            now = arrow.now()
+            delta += now - current['start']
+
+            for tag in tags_to_print:
+                if tag not in current['tags']:
+                    continue
+
+                delta = now - current['start']
+                click.echo("\t[{tag} {time}]".format(
+                    time=style('time', '{:>11}'.format(format_timedelta(delta))),
+                    tag=style('tag', '{:<{}}'.format(tag, longest_tag)),
+                ))
+
     if len(projects) > 1:
         click.echo("Total: {}".format(
             style('time', '{}'.format(format_timedelta(total)))
@@ -522,7 +539,7 @@ def report(watson, from_, to, projects, tags, special):
         sec_per_min = 60
         min_per_hr = 60
         offset = 1000
-        weeks = abs(span.start - span.stop).days/7
+        weeks = abs(span.start - span.stop).days/4
         target_hours = weeks*target_hours_per_week
         actual_hours = total.total_seconds()/sec_per_min/min_per_hr
         comparison_target_hours = int(offset*target_hours)
